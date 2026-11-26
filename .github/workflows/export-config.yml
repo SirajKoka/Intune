@@ -1,0 +1,44 @@
+name: Export Intune configuration
+
+# Nightly backup of Intune policies to ConfigurationProfiles/, committed as a diff.
+# Skipped until the repo variables AZURE_CLIENT_ID and AZURE_TENANT_ID are set (see README).
+
+on:
+  schedule:
+    - cron: '17 14 * * *'   # 03:17 NZDT
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: write
+
+jobs:
+  export:
+    if: vars.AZURE_CLIENT_ID != ''
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          allow-no-subscriptions: true
+
+      - name: Export
+        shell: pwsh
+        run: |
+          Install-Module Microsoft.Graph.Authentication -Force -Scope CurrentUser
+          $token = az account get-access-token --resource-type ms-graph --query accessToken -o tsv
+          Connect-MgGraph -AccessToken (ConvertTo-SecureString $token -AsPlainText -Force) -NoWelcome
+          Import-Module ./Modules/IntuneToolkit
+          Export-IntuneConfiguration -Path ./ConfigurationProfiles -Verbose | Format-Table
+
+      - name: Commit changes
+        run: |
+          git config user.name 'intune-export[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+          git add ConfigurationProfiles
+          if git diff --cached --quiet; then echo "No drift."; exit 0; fi
+          git commit -m "Intune config export $(date -u +%Y-%m-%d)"
+          git push

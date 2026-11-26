@@ -1,0 +1,18 @@
+# Build output: publish as GitHub Release / Actions artifacts, never commit
+*.intunewin
+*.exe
+out/
+build/
+
+# Secrets and tenant-specific config: commit *.sample.json only
+config.json
+*.secret.*
+*.pfx
+*.cer
+.env
+
+# OS / editor noise
+.DS_Store
+Thumbs.db
+.vscode/*
+!.vscode/settings.json
