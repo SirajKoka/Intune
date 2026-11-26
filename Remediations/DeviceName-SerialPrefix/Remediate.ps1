@@ -13,7 +13,7 @@ $RestartMode      = 'IfNoUser'
 $RestartDelaySecs = 600
 
 $log = "$env:ProgramData\Microsoft\IntuneManagementExtension\Logs\DeviceRename.log"
-function Write-Log([string]$Message) { "$(Get-Date -Format s) $Message" | Tee-Object -FilePath $log -Append }
+function Write-RenameLog([string]$Message) { "$(Get-Date -Format s) $Message" | Tee-Object -FilePath $log -Append }
 
 #region SharedNameLogic - keep identical in Detect.ps1 and Remediate.ps1 (enforced by Pester)
 function Get-ExpectedDeviceName {
@@ -33,20 +33,20 @@ try {
     $serial  = (Get-CimInstance -ClassName Win32_BIOS -ErrorAction Stop).SerialNumber
     $newName = Get-ExpectedDeviceName -Serial $serial -Prefix $Prefix -MaxLen $MaxLen
     if (-not $newName) {
-        Write-Log "Serial not usable ('$serial'); aborting."
+        Write-RenameLog "Serial not usable ('$serial'); aborting."
         exit 1
     }
 
     $pending = (Get-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Control\ComputerName\ComputerName' -ErrorAction SilentlyContinue).ComputerName
-    if ($env:COMPUTERNAME -ieq $newName) { Write-Log "Already named $newName"; exit 0 }
+    if ($env:COMPUTERNAME -ieq $newName) { Write-RenameLog "Already named $newName"; exit 0 }
 
     if ($pending -ine $newName) {
-        Write-Log "Renaming $env:COMPUTERNAME -> $newName"
+        Write-RenameLog "Renaming $env:COMPUTERNAME -> $newName"
         Rename-Computer -NewName $newName -Force -ErrorAction Stop
-        Write-Log 'Rename queued. Reboot required.'
+        Write-RenameLog 'Rename queued. Reboot required.'
     }
     else {
-        Write-Log "Rename to $newName already pending."
+        Write-RenameLog "Rename to $newName already pending."
     }
 
     $userSignedIn = [bool](Get-CimInstance -ClassName Win32_ComputerSystem).UserName
@@ -58,14 +58,14 @@ try {
 
     if ($restart) {
         shutdown.exe /r /t $RestartDelaySecs /c "This device is being renamed to $newName and will restart shortly."
-        Write-Log "Restart scheduled in $RestartDelaySecs seconds (mode=$RestartMode)."
+        Write-RenameLog "Restart scheduled in $RestartDelaySecs seconds (mode=$RestartMode)."
     }
     else {
-        Write-Log "No restart (mode=$RestartMode, userSignedIn=$userSignedIn). Name applies at next reboot."
+        Write-RenameLog "No restart (mode=$RestartMode, userSignedIn=$userSignedIn). Name applies at next reboot."
     }
     exit 0
 }
 catch {
-    Write-Log "Remediation error: $($_.Exception.Message)"
+    Write-RenameLog "Remediation error: $($_.Exception.Message)"
     exit 1
 }
